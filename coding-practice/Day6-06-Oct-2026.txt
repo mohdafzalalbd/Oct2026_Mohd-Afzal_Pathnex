@@ -1,0 +1,77 @@
+Day 06 - Introduction to Cloudformation & Kubernates Advanced Concept
+
+Ansible - install Docker
+- name: Install Docker
+  hosts: all
+  become: yes
+  
+  tasks:
+    -name: Install Docker
+      yum:
+        name: docker
+        state: present
+    -name: Start Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+Terraform Provisioning EC2 with VPC
+
+resource  "aws_vpc" "main" {
+    cidr_block  = "10.0.0.0/16"
+}
+resource "aws_instance" "payment_prod_server" {
+    ami = "ami-jdjfhwehir469589595"
+    instance_type   = "t3.medium"
+    subnet_id   =   "aws_subnet_main_id"
+    tags    =   {
+        Name = "payment-prod-server"
+    }
+}
+
+Kubernates - Pod with Volume Mount
+
+apiVersion: v1
+kind: Pod
+Metadata:
+  name: payment-api-pod
+
+spec:
+  containers:
+    - name: web
+      image: nginx
+      volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: html-volume
+  volumes:
+    - name: html-volume
+      hostPath:
+        path: /data
+        type: Directory
+
+Shell Script - Check running Services
+
+#!/bin/bash
+services=("nginx" "docker" "httpd")
+for service in "${services[@]}"
+do
+    if systemctl is-active --quiet $service; then
+      echo "$service is running"
+    else
+        echo "$service is not running"
+    fi
+done
+
+Docker
+Node.js Application (JavaScript)
+console.log("Payment API");
+
+Docker File
+FROM node:18
+WORKDIR /opt/payment-platform/node-app/
+COPY app.js /opt/payment-platform/node-app/
+CMD ["node", "/opt/payment-platform/node-app/app.js"]
+
+Real Path
+/opt/payment-platform/node-app

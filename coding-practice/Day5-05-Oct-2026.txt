@@ -1,0 +1,93 @@
+Day 05 - Advanced CI/CD and Infrastruture Provisioning
+Jenkins file with Git integration and Testing
+
+pipeline {
+    agent any
+    
+    stages{
+        stage("Clone Repository"){
+            steps{
+                git "https://github.com/payment-plateform/payment-api.git"
+            }
+        }
+        stage("Build){
+            steps{
+                echo "Building project from git repository"
+            }
+        }
+        stage("Test"){
+            steps{
+                echo "Running unit test"
+            }
+        }
+        stage("Deploy"){
+            steps{
+                echo "Deploying Application"
+            }
+        }
+    }
+}
+
+GitLab CI/CD - with Docker Build
+stages:
+ - build
+ - push
+ - deploy
+ 
+ build:
+   stage: build
+   script:
+     - docker build -t payment-api .
+ push:
+   stage: push
+   script:
+     - docker push payment-api
+ deploy:
+   stage: deploy
+   script:
+     - kubectl apply -f kubernates/deployment.yml
+
+Ansible - Create user & Set Permission
+- name: Create a new user
+hosts: all
+become: yes
+tasks:
+  -name: Create user
+    user:
+      name: payment-api
+      state: present
+      shell: /bin/bash
+  -name: Set permission for the user
+    file:
+      path: /home/payment-api
+      owner: payment-api
+      group: payment-api
+      mode: "0755"
+
+Terraform - EC2 with tags & volume
+resource "aws_instance" "payment_prod_server" {
+    ami             = "ami-hhejxewrswkoew445494"
+    instance_type   = "t2.medium"
+    
+    tags = {
+        name  = "payment-pro-server"
+    }
+    
+    ebs_block_device {
+        device_name = "/dev/sdh"
+        volume_size = 50
+    }
+}
+
+Docker
+Python Application
+print("Payment API")
+
+Docker file
+FROM python:3.11
+WORKDIR /opt/payment-platform/python-app
+COPY app.py /opt/payment-platform/python-app/
+CMD ["python", "/opt/payment-platform/python-app/app.py"]
+
+Real Path
+/opt/payment-platform/python.app
