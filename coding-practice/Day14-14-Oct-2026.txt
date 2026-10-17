@@ -1,0 +1,135 @@
+Day 14 - Kubernates Advanced Concepts & Multi-Environment Deployments
+
+Ansible - Setup Nginx with Reverse Proxy
+
+- name: Setup Nginx with Reverse Proxy
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install Nginx
+      yum:
+        name: nginx
+        state: present
+    - name: Configure nginx as reverse proxy
+      template:
+        src: reverse-proxy.conf.j2
+        dest: /etc/nginx/conf.d/reverse-proxy.conf
+    - name: Restart nginx service
+      service:
+        name: nginx
+        state: restarted
+        enabled: yes
+
+Terraform - Create S3 Bucket with Versioning & Logging
+resource "aws_s3_bucket" "payment_platform_bucket" {
+    bucket      = "payment-platform-app-bucket"
+}
+resource "aws_s3_bucket_versioning" "payment_plateform_versioning" {
+    bucket      = aws_s3_bucket.payment_platform_bucket.id
+    versioning_configuration {
+        status  = "Enabled"
+    }
+}
+resource "aws_s3_bucket" "payment_platform_log_bucket" {
+    bucket      = "payment-platform-access-logs-bucket"
+}
+resource "aws_s3_bucket_logging" "payment_platform_logging" {
+    bucket          = aws_s3_bucket.payment_platform_bucket.id
+    target_bucket   = aws_s3_bucket.payment_platform_log_bucket.id
+    target_prefix   = "logs/"
+}
+
+Kubernates - Ingress with Nginx Controller
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: payment-api-ingress
+  annotation:
+    nginx.ingress.kubernates.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: payment-api.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-api-service
+                port:
+                  number: 80
+                  
+JenikinsFile - Build, Test, and Deploy with Stages
+
+pipeline {
+    agent any
+    environment {
+        IMAGE_NAME = 'payment-api'
+    }
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Building Docker image...'
+                script {
+                    docker.build("${env.IMAGE_NAME}")
+                }
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Running tests...'
+            }
+        }
+        stage('Deploy to Kubernates') {
+            steps {
+                script {
+                    sh 'kubectl apply -f kubernates/deployment.yaml'
+                }
+            }
+        }
+    }
+}
+
+GitLab CI/CD - Multi-Stage Deployment with Helm
+
+stages:
+  - build
+  - push
+  - deploy
+
+variables:
+  IMAGE_NAME: "payment-api"
+
+build:
+  stage: build
+  script:
+    - docker build -t "$IMAGE_NAME"
+  tags:
+    - docker
+
+push:
+  stage: push
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+    - docker tag "$IMAGE_NAME" "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+  tags:
+    - docker
+
+deploy:
+  stage: deploy
+  script:
+    - helm repo add bitnami https://charts.bitnami.com/bitnami
+    - helm repo update
+    - helm upgrade --install payment-api-nginx bitnami/nginx
+  tags:
+    - deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: manual
+Docker - CMD vs ENTRYPOINT
+FROM ubuntu:22.04
+ENTRYPOINT ["echo"]
+CMD ["Hello Payment API"]
