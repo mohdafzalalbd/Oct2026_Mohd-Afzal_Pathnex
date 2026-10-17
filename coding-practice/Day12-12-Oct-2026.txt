@@ -1,0 +1,141 @@
+Day 12 - Scaling Application and Automation
+
+Ansible - Setup ASG
+- name: Setup ASG
+  hosts: all
+  become: yes
+
+tasks:
+  - name: Create Launch Configuration
+    ec2_asg:
+      name: payment_api_asg
+      region: us-east-1
+      launch_config_name: payment-api-launch-config
+      min_size: 1
+      max_size: 3
+      desired_capacity: 2
+      vpc_zone_identifier: subnet-12345678
+    
+Terraform - Create a loadBalancer with EC2 instance
+resource "aws_lb" "payment_api_lb" {
+    name                = "payment-app-lb"
+    internal            = false
+    load_balancer_type  = "application"
+    security_groups     = [aws_security_group.allow_ssh_http.id]
+    subnet              = [aws_subnet.public.id]
+}
+
+resource "aws_instance" "payment_api_prod_server" {
+    ami             = "ami-basdaskxnsaxad85a6d56"
+    instance_type   = "t2.micro"
+    security_groups = [aws_security_group.allow_ssh_http.name]
+    tags    = {
+        Name: "Payement-Prod-Server"
+    }
+}
+
+Kubernates - HPA with LB
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-api
+  template:
+    metadata:
+      labels:
+        app: payment-api
+    spec:
+      containers:
+        - name: web
+          image: nginx
+          ports:
+            - containerPort: 80
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: payment-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: payment-api
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+JenkinsFile - Implement Parallel Stages
+pipeline {
+    agent any
+    stages {
+        stage('Build & Test') {
+            parallel {
+                stage('Build') {
+                    steps {
+                        echo 'Building payment-api...'
+                    }
+                }
+                stage('Test') {
+                    steps {
+                        echo 'Running payment-api tests...'
+                    }
+                }
+            }
+        }
+        stage('Deploy) {
+            steps {
+                echo 'Deploying payment-api...'
+            }
+        }
+    }
+}
+
+GitLab CI/CD - Parallel Jobs for Build & Test
+stages:
+  - build
+  - test
+  - deploy
+
+build:
+  stage: build
+  script:
+    - docker build -t payment-api .
+  tags:
+    - docker
+
+test:
+  stage: test
+  script:
+    - npm ci
+    - npm test
+  tags:
+    - node
+
+deploy:
+  stage: deploy
+  script:
+    - kubectl apply -f kubernates/deployment.yml
+  tags:
+    - deploy
+
+Docker - Volume
+FROM ubuntu:22.04
+VOLUME ["/opt/payment-platform/data"]
+CMD ["sleep", "1000"]
+
+Real Path
+/opt/payment-platform/data
+
+Bash Command
+docker volume create payment-platform-volume
