@@ -1,0 +1,143 @@
+Day 10 - High Availablity, Multi-Region, and Auto-Scaling
+
+Avsible - Configure HAProxy for Load Balancing
+
+- name: Setup HAProxy Load Balancer
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install HAProxy
+      yum:
+        name: haproxy
+        state: present
+    - name: Configure HAProxy
+      template:
+        src: haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+    - name: Start HAProxy Service
+      service:
+        name: haproxy
+        state: started
+        enabled: yes
+
+Terraform - Multi-Region Auto-Scaling group with ALB
+
+resource "aws_lb" payment-platform-lb" {
+    name                    = "payment-platform-lb"
+    internal                = false
+    load_balancer_type      = "application"
+    security_groups         = [aws_security_group.allow_ssh_http.id]
+    subnets                 = [aws_subnet.public.id, aws_subnet.public2.id]
+}
+resource "aws_autoscaling_group" "payment_platform_asg" {
+    desired_capacity        = 3
+    max_size                = 5
+    min_size                = 2
+    vpc_zone_identifier     = [aws_subnet.public.id, aws_subnet.public2.id]
+    launch_configuration    = aws_launch-configuration.payment_platform_config.id
+}
+
+Kubernates - Horizontal Pod Autoscaler with Multiple Replicas
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: payment-api
+  template:
+    metadata:
+      labels:
+        app: payment-api
+    spec:
+      containers:
+        - name: payment-api
+          image: nginx:1.28
+          ports:
+            - containerPort: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: payment-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: payment-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+JenkinsFile - Blue-Green Deployment Strategy
+
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Building Docker Image...'
+                script {
+                    docker.build('payemnt-api')
+                }
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Running Test...'
+            }
+        }
+        stage('Blue-Green Deployments') {
+            steps {
+                script {
+                    sh 'kubectl apply -f kubernates/blue-deployment.yaml'
+                    sh 'kubectl apply -f kubernates/green-deployment.yaml'
+                    sh 'kubectl rollout status deployment/blue-deployment'
+                    sh 'kubectl rollout status deployment/green-deployment'
+                }
+            }
+        }
+    }
+}
+
+GitLab CI/CD - Blue-Green Deployment with Kubernates
+
+stages:
+  - build
+  - push
+  - deploy
+
+build:
+  stage: build
+  script:
+    - docker build -t payment-api:$CT_COMMIT_SHA
+
+push:
+  stage: push
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+    - docker tag payment-api:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE/payment-api:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/payment-api:$CI_COMMIT_SHA
+
+deploy:
+  stage: deploy
+  script:
+    - kubectl apply -f kubernates/blue-deployment.yaml
+    - kubectl apply -f kubernates/green-deployment.yaml
+    - kubectl rollout status deployment/blue-deployment
+    - kubectl rollout status deployment/blue-deployment
+
+Docker - Redis Container & Data Path
+docker run -d --name payment-platform-redis redis
+
+Real PATH
+/data
