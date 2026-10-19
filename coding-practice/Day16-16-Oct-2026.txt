@@ -1,0 +1,155 @@
+Day 16 - Advanced Cloudformation & Multi-Region Deployments
+
+Ansible - Create and Start EC2 Instances
+
+- name: Create EC2 Instances
+  hosts: localhost
+  become: yes
+  tasks:
+
+    - name: Launch EC2 Instance in us-east-1
+      amazon.aws.ec2.instance:
+        name: payment-prod-server-us-east-1
+        key_name: payment-platform-key
+        region: us-east-1
+        instance_type: t2.micro
+        image_id: ami-jdsajjafjdfsfbns657q534xb7q3
+        wait: yes
+        state: running
+
+    - name: Launch EC2 instance in us-west-2
+      amazon.aws.ec2.instance:
+        name: payment-prod-server-us-west-2
+        key_name: payment-platform-key
+        region: us-west-2
+        instance_type: t3.medium
+        image_id: ami-cnjf7584fj58vyt8v584w
+        wait: yes
+        state: running
+
+Terraform - Multi-Region VPC with EC2
+resource "aws_vpc" "us_east_vpc" {
+    cidr_block      = "10.0.0.0/16"
+    region          = "us-east-1"
+}
+resource "aws_vpc" "us_west_vpc" {
+    cidr_block      = "10.1.0.0/16"
+    region          = "us-west-1"
+}
+resource "aws_instance" "payment_prod_server_west" {
+    ami             = "ami-kjsaxjfbybc63654b483"`
+    instance_type   = "t3.medium"
+    region          = "us-west-1"
+}
+resource "aws_instance" "payment_prod_server_east" {
+    ami             = "ami-unx7r67327c4c4fgubsdv84w"
+    instance_type   = "t2.small"
+    region          = "us-east-1"
+}
+
+Kubernates - Multi-Cluster Deployment with federation 
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api
+  labels:
+    app: payment-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-api
+  template:
+    metadata:
+      labels:
+        app: payment-api
+    spec:
+      containers:
+        - name: payment-api
+          image: nginx:1.28
+          ports:
+            - containerPort: 80
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-api-service
+spec:
+  selector:
+    app: payment-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+JenkinsFile - Deploy to Multi-Cluster Environment
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps: {
+                echo 'Building Docker image...'
+                script: {
+                    docker.build('payment-api')
+                }
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Running tests...'
+            }
+        }
+        stage('Deploy to Kubernates') {
+            steps {
+                script {
+                    if (env.CLUSTER == 'us-east') {
+                        sh 'kubectl --context=us-east apply -f kubernates/deployment.yaml'
+                    } else if (env.CLUSTER == 'us-west') {
+                        sh 'kubectl --context=us-west apply -f kubernates/deployment.yaml'
+                    } else {
+                        error("Unsupported CLUSTER value: ${env.CLUSTER}")
+                    }
+                }
+            }
+        }
+    }   
+}
+
+GitLab CI/CD - Multi-Region Deployment with Kubernates
+stages:
+  - build
+  - push
+  - deploy
+build:
+  stage: build
+  script:
+    - docker build -t payment-api:$CI_COMMIT_SHA .
+push:
+  stage: push
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+    - docker tag payment-api:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE/payment-api:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/payment-api:$CI_COMMIT_SHA
+    
+deploy:
+  stage: deploy
+  script:
+    - |
+      if [ "$CI_COMMIT_REF_NAME" = "main" ]; then
+        kubectl --context=us-east apply -f kubernates/prod-deployment.yaml
+      else
+        kubectl --context=us-west apply kubernates/dev-deployment.yaml
+      fi
+
+Docker - Shell Script Execution
+#!/bin/bash
+echo "Hello Payment API"
+
+DockerFile
+FROM ubuntu:22.04
+WORKDIR /opt/payment-platform/scripts
+COPY start.sh /opt/payment-platform/scripts/
+RUN chmod +x /opt/payment-platform/scripts/start.sh
+CMD ["/opt/payment-platform/scripts/start.sh"]
+
