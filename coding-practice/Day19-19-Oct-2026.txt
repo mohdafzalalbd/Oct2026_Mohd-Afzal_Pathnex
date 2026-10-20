@@ -1,0 +1,139 @@
+Day 19 - Advanced Monitoring, Logging, and Security.
+
+Ansible Setup Prometheus for Monitoring
+
+- name : Install Prometheus for Monitoring
+  hosts: monitoring
+  become: yes
+  tasks:
+
+    - name: Install Prometheus Dependencies
+      yum:
+        name:
+          - prometheus
+          - prometheus-node-exporter
+        state: present
+
+    - name: Start Prometheus Service
+      service:
+        name: prometheus
+        state: started
+        enabled: yes
+
+Terraform - Setup AWS CloudWatch for Monitoring.
+
+resource "aws_cloudwatch_log_group" "payment_platform_log_group" {
+    name                = "payment-platform-log-group"
+}
+resource "aws_cloudwatch_log_stream" "payment_platform_log_stream" {
+    log_group_name      = aws_cloudwatch_log_group.payment_platform_log_grpup.name
+    name                = "payment-platform-log-stream"
+}
+
+Kubernates - Deploy Fluented for logging.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api-fluentd
+spec:
+  replicase: 1
+  selector:
+    matchLabels:
+      app: payment-api-fluentd
+  template:
+    metadata:
+      labels:
+        app: payment-api-fluentd
+    spec:
+      containers:
+        - name: fluentd
+          image: fluentd/fluentd
+          ports:
+            - containerPort: 24224
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-api-fluentd
+spec:
+  selector:
+    app: payment-api-fluentd
+  ports:
+    - protocol: TCP
+      port: 24224
+      targetPort: 24224
+
+JenkinsFile - Integrating Prometheus Monitoring in Pipeline.
+
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Building Docker Image..'
+                script {
+                    docker.build('payment-api')
+                }
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Running Test...'
+            }
+        }
+        stage('Monitor Deployment') {
+            steps {
+                script {
+                    sh 'kubectl apply -f kubrnates/deployment.yaml'
+                    sh 'kubectl get pods --watch'
+                }
+            }
+        }  
+    }
+}
+
+GitLab CI/CD - Prometheus and Loging Integration
+
+stages:
+  - build
+  - push
+  - deploy
+
+build:
+  stage: build
+    script: 
+      - docker build -t payment-api:$CI_COMMIT_SHA .
+
+push:
+  stage: push
+    script:
+      - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+      - docker tag payment-api:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE/payment-api:$CI_COMMIT_SHA
+      - docker push $CI_REGISTRY_IMAGE/payment-api:$CI_COMMIT_SHA
+
+deploy:
+  satge: deploy
+  script:
+    - kubectl apply -f kubernates/deployment.yaml
+    - kubectl rollout status deployment/payment-api --timeout=120s
+    - kubectl get pods
+
+Docker - flask Application (Python)
+
+app.py
+from flask import Flask
+app = Flask(-name-)
+@app.route('/')
+def home():
+    return "Hello Payment API"
+app.run(host='0.0.0.0', port=5000)
+
+DockerFile
+FROM python:3.11
+WORKDIR /opt/payment-platform/flask-app
+COPY . /opt/payment-platform/flask-app/
+RUN pip install flask
+CMD ["python", "/opt/payment-platform/flask-app/app.py"]

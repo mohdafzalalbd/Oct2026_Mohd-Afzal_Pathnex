@@ -1,0 +1,138 @@
+Day 10 - Advanced Kubernates, Jenkins & GitLab CI
+Focus: Multiple Docker Applications + AWS VPC Networking + Kubernates StatefulSet + CI/CD Build/Push/Deploy
+
+Ansible - Create Docker Containers for Multiple Applications
+- name: Setup Docker Containers for multiple Apps
+  hosts: all
+  beocme: yes
+  tasks:
+    - name: Pull Web App Image
+      docker_image:
+        name: payment-api
+        source: pull
+    - name: Pull DB App Image
+      docker_image:
+        name: payment-db
+        source: pull
+    - name: Run Web Container
+      docker_container:
+        name: payment-api
+        image: payment-api
+        state: started
+        published_ports:
+          - "8080:80"
+    - name: Run DB Container
+      docker_container:
+        name: payment-db
+        image: payment-db
+        state: started
+        published_ports:
+          - "3306:3306"
+
+Terraform - with private & public subnet
+resource "aws_vpc" "main" {
+    cidr_block  = "10.0.0.0/16"
+}
+resource "aws_subnet" "public" {
+    vpc_id                  = "aws_vpc.main.id"
+    cidr_blocks             = "10.0.1.0/24"
+    availablity_zone        = "us-east-1a"
+    map_public_ip_on_launch = true
+}
+resource "aws_subnet" "private" {
+    vpc_id                  = "aws_vpc.main.id"
+    cidr_blocks             = "10.0.2.0/24"
+    availablity_zone        =   "us-east-1b"
+}
+
+Kubernates - Deploying StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: payment-api
+spec:
+  serviceName: "payment-db"
+    replicas: 3
+      selector:
+        matchLabels:
+          app: payment-db
+      template:
+        metadata:
+          labels:
+            app: payment -db
+        spec:
+          containers:
+            - name: db
+              image: mysql:5.7
+              volumeMounts:
+                - mountPath: /var/lib/mysql
+                  name: mysql-storage
+      volumeClaimTemplates:
+        - metadata:
+            name: mysql-storage
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resource:
+              requests:
+                storage: 1Gi
+                
+JenkinsFile - Build & Deploy to Kubernates
+pipeline {
+    agent any
+    environment {
+        IMAGE_NAME  =  'payment-api'
+    }
+    stages {
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build("${env.IMAGE_NAME}")
+                }
+            }
+        }
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    docker.withRegistry('https://docker.io', 'docker-credentials') {
+                        docker.image("${env.IMAGE_NAME}").push('latest')
+                    }
+                }
+            }
+        }
+        stage('Deploy to Kubernates') {
+            steps {
+                script {
+                    sh 'kubectl apply -f deployment.yaml
+                }
+            }
+        }
+    }
+}
+
+GitLab - CI/CD - Buid, Push & Deploy
+stages:
+  - build
+  - push
+  - deploy
+build:
+  stage: Build
+  script:
+    - docker build -t payment-api .
+push:
+  stage: Push
+  script:
+    - docker login -u "$CI_REGISTERY_USER" -p "$CI_REGISTERY_PASSWORD"
+    - docker push payment-api
+deploy:
+  stage: deploy
+  script:
+    - kubectl apply -f kubernates/deployment.yaml
+
+Docker - Working Directory & Copy
+FROM ubuntu:22.04
+WORKDIR /opt/payment-platform/devops-project
+COPY . /opt/payment-platform/devops-projrct/
+CMD ["ls", "-l", "/opt/payment-platform/devops-project"]
+
+Real Path
+/opt/payment-platform/devops-project
