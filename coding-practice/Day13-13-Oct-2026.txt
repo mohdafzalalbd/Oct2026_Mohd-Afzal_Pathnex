@@ -1,0 +1,157 @@
+Day 13 - Advanced Automation with Cloudformation and CI/CD
+Ansible - Multi-Node Nginx Setup
+
+- name: Setup Nginx on multiple Nodes
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install Nginx
+      yum:
+        name: nginx
+        state: present
+
+    - name: Start Nginx Service
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+Terraform - Create IAM Users and Policies
+
+resource "aws_iam_user" "payment_platform_user" {
+    name            = "payment-platform-user"
+}
+
+resource "aws_iam_policy" "payment_platform_policy" {
+    name            = "payment-platform-s3-list-policy"
+    description     = "Policy for payment-platform application"
+    policy          = jsonencode({
+        Version     = "2012-10-17"
+        Statement   = [
+            {
+                Action      = "s3:ListBucket"
+                Effect      = "Allow"
+                Resource    = "arn:aws:s3:::payment-platform-bucket"
+            },
+        ]
+    })
+}
+
+Kubernates - Deploy Nginx with ConfigMap and Secrets
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payment-api-nginx-config
+data:
+  nginx.conf: |
+    server {
+        listen 80;
+        server_name localhost;
+        location / {
+            root /usr/share/nginx/html;
+            index index.html index.html;
+        }
+    }
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: payment-api-nginx-secret
+type: Opaque
+data:
+  password: fdjfjkaxhnjajdsJhjkGJKJKjhKJ=
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api-nginx
+spec:
+  replicas: 2
+  selector:
+    matchLabel:
+      app: payment-api-nginx
+  template:
+    metadata:
+      labels:
+        app: payment-api-nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:stable
+          volumeMounts:
+            - mountPath: /etc/nginx/nginx.conf 
+              name: nginx-config
+              subPath: nginx.conf
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: payment-api-nginx-config
+        - name: nginx-secret
+          secret:
+            secretName: payment-api-nginx-secret
+
+JenkinsFile - Multi-Branch Pipeline with Docker Build
+
+pipeline {
+    agent any
+    environment {
+        IMAGE_NAME = 'payment-api'
+    }
+    
+    stages {
+        stage('Build') {
+            steps {
+                script {
+                    docker.build("${env.IMAGE_NAME}")
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                sh 'kubectl apply -f kubernates/deployment.yaml'
+            }
+        }
+    }
+}
+
+GitLab CI/CD - Advanced Deployment with Helm
+stages:
+  - build
+  - push
+  - deploy
+variables:
+  IMAGE_NAME: "payment-api"
+build:
+  stage: build
+  script:
+    - docker build -t "$IMAGE_NAME" .
+tags: 
+  - docker
+
+push:
+  stage: push
+  script:
+    - echo "$CI_REGISTRY_PASSWORD | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+    - docker tag "$IMAGE_NAME" "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+tags:
+  - docker
+
+deploy:
+  stage: deploy
+  script:
+    - helm repo add bitnami https://charts.bitnami.com/bitnami
+    - helm repo update
+    - helm upgrade --install payment-api-nginx bitnami/nginx
+tags:
+  - deploy
+rules:
+  - if: '$CI_COMMIT_BRANCH == "master"'
+    when: manual
+
+Docker - COPY vs ADD 
+FROM ubuntu:22.04
+
+COPY payment-platform-file.txt /opt/payment-platform/files/
+ADD payment-platform.tar.gz /opt/payment-platform/extracted/

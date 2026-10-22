@@ -1,0 +1,118 @@
+Day 20 - Security, Hardening, and Compliance.
+
+Ansible - Configure Firewall with iptables.
+- name: Configure Firewall with iptables
+  hosts: all
+  become: yes
+  tasks:
+    - name: Set Defaults policies to drop all traffic.
+      command: iptables -P INPUT DROP
+
+    - name: Allow SSH and HTTP traffic
+      command: iptables -A INPUT -P tcp --dport 22 -j ACCEPT
+
+    - name: Allow HTTP traffic
+      command: iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+
+    - name: Save iptables Configuration.
+      command: service iptables save
+
+Terraform - Configure Security Groups for EC2.
+
+resource "aws_security_group" payment_platform_sg" {
+    name            = "payment-platform-sg"
+    description     = "Allow SSH and HTTP"
+
+    ingress {
+        from_port   = 22
+        to_port     = 22
+        protocol    = "tcp"
+        cidr_blocks = ["0.0.0.0/0]
+    }
+    ingress {
+        from_port   = 80
+        to_port     = 80
+        protocol    = "tcp"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+    tags    = {
+        Name        = "payment-platform-sg"
+        Environment = "production"
+        Owner       = "platform-team"
+    }
+}
+
+Kubernates - RBAC Configuration for Access Control
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: payment-platform-cluster-admin-binding
+subjects:
+  - kind: User
+    name: payment-platform-User
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+
+JenkinsFile - Secure Credentials Management
+
+pipeline {
+    agent any
+    environment {
+        REGISTRY_PASSWORD = credentials('docker-registry-password')
+    }
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Building Docker image...'
+                script {
+                    docker.build('payment-api')
+                }
+            }
+        }
+        stage('Push') {
+            steps {
+                script {
+                    docker.withRegistry('https://docker.io', 'docker-credentials') {
+                        docker.image('payment-api').push('latest')
+                    }
+                }
+            }
+        }
+    }
+}
+
+GitLab CI/CD - Secure Depoyment with Secret Management
+
+stages:
+  - build
+  - push
+  - deploy
+
+build:
+  stage: build
+  script:
+    - docker build -t payment-api:$CI_COMMIT_SHA .
+
+push:
+  stage: push
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+    - docker tag payment-api:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE/payment-api:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/payment-api:$CI_COMMIT_SHA
+
+deploy
+  stage: deploy
+  script:
+    - kubectl apply -f kubernates/deployment.yaml
+    - kubectl rollout status deployment/payment-api --timeout=120s
+    - kubectl get pods
+
+Docker - Docker Networking
+
+docker network create payment-platform-network
+docker run -dit --name c1 --network payment-platform-network ubuntu 
+docker run -dit --name c2 --network payment-platform-network ubuntu
