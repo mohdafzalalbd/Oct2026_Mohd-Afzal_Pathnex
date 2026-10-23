@@ -1,0 +1,96 @@
+Day 07 - Automating Cloud Infrastructure with Terraform & Ansible
+
+Ansible - Setup Nginx with Custom Config
+
+- name: Setup Nginx With Custom Config
+  hosts: all
+  become: yes
+  
+  tasks:
+    - name: Install Nginx
+      yum:
+        name: nginx
+        state: present
+    - name: Copy Custon nginx Config
+      copy:
+        src: nginx.conf
+        dest: /etc/nginx/nginx.conf
+    - name: Start Nginx Service
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+Terraform Provision EC2 with IAM Role
+
+resource "aws_iam_role" "ec2_role" {
+    name    = "payment-pro-ec2-role"AWSTemplateFormatVersion: "2010-09-09"
+    assume_role_policy= jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+            {
+                Action = "sts:AssumeRole"
+                Effect = "Allow"
+                Principle = {
+                    Service = "ec2.amazonaws.com"
+                }
+            },
+        ]
+
+    })
+}
+
+resource "aws_instance" "payment_prod_server" {
+    ami = "ami-dauhauhf5898849889"
+    instance_type   = "t2.medium"
+    iam_instance_profile = aws_iam_role.ec2_role.name
+    
+    tage = {
+        Name    =   "payment-prod-server"
+    }
+}
+
+Kubernates - Configmap & Secret Management
+
+apiVersion: v1
+kind: Configmap
+metadata:
+  name: payment-api-config
+
+data:
+  app.properties:
+    key=value
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: payment-api-secret
+type: Opaque
+data:
+  password: hdagdfadxjsdh
+
+Shell Script - Archive Logs
+
+#!/bin/bash
+tar -czf /var/log/archived_logs.tar.gz /var/log/*.log
+
+Docker Java Application
+Java
+class Hello {
+    public static void main(String[] args) {
+        System.out.printIn("Payment API");
+    }
+}
+
+Docker File
+
+FROM openjdk:17
+WORKDIR /opt/payment-platform/java-app
+COPY HELLO.java /opt/payment-platform/java-app/
+RUN javac /opt/payment-platform/java-app/HELLO.java
+CMD ["java", "-cp", "/opt/payment-platform/java-app", "Hello"]
+
+Real Path
+/opt/payment-platform/java-app
