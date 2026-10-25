@@ -1,0 +1,77 @@
+Day 03 - Ansible, Terraform & Kubernates
+Ansible - Install Apache & Start service & Enable service
+
+- name : Install & Start, Enable production server
+  hosts: web_servers
+  become: yes 
+
+  tasks:
+    - name: install Apache
+      yum:
+        name: httpd
+        state: present
+
+    - name: Start Apache
+      yum:
+        name: httpd
+        state: start
+        enabled: yes
+
+Terraform - EC2 Instance (t3.medium) with Tag
+
+provider "aws" {
+  region = "us-east-1"
+}
+resource = aws_instance "web_server" {
+  ami = "ami-oej3434bhe3bd4hbdf"
+  instance_type = "t3.medium"
+  tage = {
+    Name = "web_server"
+    }
+}
+
+Kubernates - Create a replicaset with 3 replicas
+
+apiVersion: apps/v1
+kind: Replicaset
+metadata:
+  name: web-server-replicaset
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-server
+  template:
+    metadata:
+      Labels:
+        app: web-server
+    spec:
+      containers:
+        - name: web-server
+          image: nginx
+          ports:
+            - containerPort: 80
+        
+Shell Script user-info
+
+#!/bin/bash
+
+echo "current user: $(whoami)"
+echo "current group: $(groups)"
+
+Docker
+Docker File for Nginx Web Server
+
+FROM nginx:latest
+COPY index.html /usr/share/nginx/html/index.html
+
+HTML
+<h1>Hello Pathnex</h1>
+
+Bash
+Real Bash
+/usr/share/nginx/html
+
+Bash
+docker build -t pathnex-nginx .
+docker run -d -p 8080:80 pathnex-nginx
