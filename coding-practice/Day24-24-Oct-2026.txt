@@ -1,0 +1,101 @@
+Day 24 - Advanced Terraform Modules and CI/CD Pipeline Scaling
+
+=======================================================================================================================
+Ansible - Deploy Docker Containers with Kubernates Using Helm
+
+- name: Deploy Docker Containers with Helm
+  host: localhost
+  tasks:
+    - name: Install Helm
+      command: curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+
+    - name: Deploy Micro-Services with Helm
+      command: helm install payment-api-app ./microservice-chart
+
+=======================================================================================================================
+Terraform - Multi-Module Infrastructure with Outputs
+
+module "payment_platform_vpc" {
+    source      = "./vpc"
+}
+module "payment_platform_instance" {
+    source      = "./instance"
+    vpc_id      = module.payment_plateform_vpc.vpc_id
+}
+output "instance_id" {
+    value       = module.payment_platform_instance.instance.instance_id
+}
+
+=======================================================================================================================
+Kubernetes - Helm-based Auto-Scaling Deployments
+
+Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api-web-app
+spec:
+  replicas: 3
+  selector:
+    matchLabel:
+      app: payment-api-web-app
+  template:
+    metadata:
+      labels:
+        app: payment-api-web-app
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+          ports:
+            - containerPort: 80
+---
+HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoScaller
+metadata:
+  name: payment-api-web-app-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: payment-api-web-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+=======================================================================================================================
+JenkinsFile - Scaling CI/CD Pipeline
+
+pipeline {
+    agent any
+    stages {
+        stage('Scale-UP') {
+            steps {
+                echo 'Scaling up Jenkins pipeline agents for heavy workloads'
+            }
+        }
+        stage('Build') {
+            steps {
+                echo 'Building projects...'
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo 'Deploying projects...'
+            }
+        }
+    }
+}
+
+=======================================================================================================================
+Docker - HealthCheck
+
+FROM nginx
+HEALTHCHECK CMD curl --fail http://localhost || exit 1

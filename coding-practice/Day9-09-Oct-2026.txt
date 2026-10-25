@@ -1,0 +1,98 @@
+Day 09 - Docker Integratin with Jenkins & GitLab
+Focus: Docker Container Automation + AWS Auto Scaling + Kubernates HPA + Kubernates Deployment through CI/CD
+
+Ansible - Setup Docker Container For Nginx
+- name: Setup Docker Container for Nginx
+  hosts: all
+  become: yes
+  tasks:
+    - name: Pull Nginx Image
+      docker_image:
+        name: nginx
+        source: pull
+    - name: Run nginx Container
+      docker_container:
+        name: nginx-container
+        image: nginx
+        state: started
+        published_port:
+          - "8080:80"
+
+Terraform - EC2 with Auto Scaling Group
+resource "aws_launch_configuration_" " payment_api_launch_config" {
+    name            = "payment-api-launch-config"
+    image_id        = "ami-jsndss154f5dsf1s4"
+    instance_type   = "t3.medium"
+}
+resource "aws_autoscaling_configurstion" "payment_api_asg" {
+    desired_capacity        = 2
+    max_size                = 3
+    min_size                = 1
+    vpc_zone_identifier     = ["subnet-12345678"]
+    launch_configuration    = aws_launch_configuration.payment_apilaunch_config.id
+}
+
+Kubernates - Horizontal POD Autoscaler (HPA)
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: payment-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: payment-api
+  template:
+    metadata:
+      labels:
+        app: payment-api
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+          ports:
+            - containerPort: 80
+            
+---
+
+apiVersion: autoscaling/v2
+kind: HorozontalPodAutoscaller
+metadata:
+  name: payment-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: app/v1
+    kind: Deployment
+    name: payment-api
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 50
+
+JenkinsFile - Deploy to Kubernates
+pipeline {
+    agent any
+    stages {
+        stage('Deploy to Kubernates') {
+            steps {
+                script {
+                    sh 'kubctl apply -f deployment.yaml'
+                }
+            }
+        }
+    }
+}
+
+GitLab - Deploy to Kubernates
+stages:
+  - deploy
+deploy:
+  stage: deploy
+  script:
+    - kubectl apply -f kubernates/deployment.yaml
+
+Docker
+Environment Variables
+FROM ubuntu:22.04
+ENV INSTITUTE=payment-platform
+ENV COURSE=Devops
+CMD echo "$INSTITUTE - $COURSE"

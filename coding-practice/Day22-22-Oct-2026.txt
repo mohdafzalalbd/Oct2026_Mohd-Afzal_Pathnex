@@ -1,0 +1,137 @@
+Day 22 - Multi-Cluster Kubernates Management.
+========================================================================================
+Ansible - Deploy Nginx Across Multiple Kubernates Clusters.
+
+- name: Deploy Nginx Across Multiple Kubernates Clusters
+  hosts: localhost
+  become: yes
+
+  tasks:
+    - name: Configure kubectl for Cluster 1
+      command: kubectl --context=us-east config use-context us-east-cluster
+      
+    - name: Deploy Nginx on Cluster 1
+      command: kubectl apply -f kubernates/deployment.yaml
+
+    - name: Configure kubectl for Cluster 2
+      command: kubectl --context=us-west config use-context us-west-cluster
+
+    - name: Deploy Nginx on Cluster 2
+      command: kubectl apply -f kubernates/deployment.yaml
+========================================================================================
+Terraform - Multi-Region Kubernates Cluster with EKS and GKE.
+
+resource "aws_eks_cluster" "payment_platform_eks" {
+    name                = "payment-platform-eks-cluster"
+    role_arn            = aws_iam_role.eks_cluster_role.arn
+    vpc_config {
+        subnet_ids      = [aws_subnet.payment_platform_subnet.id]
+    }
+    depends_on          = [aws_iam_role_policy_attachment.eks_cluster_role_policy]
+}
+resource "google_container_cluster" "payment_platform_gke" {
+    name                = "payment-platform-gke-cluster"
+    location            = "us-central1-a"
+    initial_node_count  = 3
+    node_config {
+        machine_type    = "n1-standard-1"
+    }
+}
+========================================================================================
+Kubernetes - Federated Deployment wih Multiple Clusters.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: payment-api
+  template:
+    metadata:
+      labels:
+        app: payment-api
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+          ports:
+            - containersPort: 80
+
+---
+
+apiVersion: federation.k8s.io/v1beta1
+kind: FederatedDeployment
+metadata:
+  name: payment-api-federated-deployment
+  namespace: default
+spec:
+  template:
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: payment-api
+      template:
+        metadata:
+          labels:
+            app: payment-api
+        spec:
+          containers:
+            - name: nginx
+              image: nginx
+              ports:
+                - containerPort: 80
+========================================================================================
+JenkinsFile - Multi-Cluster Deployment Strategy
+
+pipeline {
+    agent any
+    stages {
+        stage('Deploy to Cluster 1') {
+            steps {
+                script {
+                    sh 'kubectl --context=us-east-cluster apply -f kubernetes/deployment.yaml'
+                }
+            }
+        }
+        stage('Deploy to Cluster 2') {
+            steps {
+                script {
+                    sh 'kubectl --context=us-west-cluster apply -f kubernetes/deployment.yaml'
+                }
+            }
+        }
+    }
+}
+========================================================================================
+GitLab CI/CD - Multi-Cluster Depoyment Strategy
+
+stages:
+  - deploy
+
+deploy_cluster_2:
+  stage: deploy
+  script:
+    - kubectl --context=us-east-cluster apply -f kubernetes/deployment.yaml
+
+deploy_cluster_2:
+  stage: deploy
+  script:
+    - kubectl --context:us-west-cluster apply -f kubernetes/deployment.yaml
+========================================================================================
+Docker Compose - MySQL and Nginx Services
+
+version: '3'
+services:
+  db:
+    image: mysql:1
+    container_name: payment-api-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      
+  web:
+    image: nginx
+    container_name: payment-api-web

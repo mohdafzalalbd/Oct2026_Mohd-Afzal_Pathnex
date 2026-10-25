@@ -1,0 +1,111 @@
+Day 21 - Disaster Recovery and Backup Strategies
+
+Ansible - Backup and Restore Files.
+
+- name: Backup & Restore files
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Create Backup of /etc dir.
+      command: tar -czvf /tmp/etc-backup.tar.gz /etc
+
+    - name: Copy backup to Remote server
+      copy:
+        src: /tmp/etc-backup.tar.gz
+        dest: /tmp/etc-backup.tar.gz
+
+    - name: Restore backup from remote server
+      command: tar -xzvf /tmp/etc-backup.tar.gz -C /
+
+Terraform - Create S3 Buckets for Backup
+
+resource "aws_s3_bucket" "payment_backup_bucket" {
+    bucket              = "payment-platform-backup-bucket"
+}
+resource "aws_s3_bcket" "payment_backup_bucket_eu" {
+    bucket              = "payment-platform-backup-bucket-eu"
+}
+resource "aws_s3_bucket_object" "payment_backup_files" {
+    bucket              = aws_s3_bucket.payment_backup_bucket.bucket
+    key                 = "backup.tar.gz"
+    source              = "payment-platform-backup.tar.gz"
+}
+
+Kubernates - Disaster Recovery with Persistent Voulumes.
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: payment-api-statefulset
+spec:
+  serviceName: "payment-api"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: payment-api
+    template:
+      metadata:
+        labels:
+          app: payment-api
+      spec:
+        containers:
+          - name: nginx
+            image: nginx
+            volumeMounts:
+              - mountPath: /usr/share/nginx/html
+                name: web-content
+    volumeClaimTemplates:
+    - metadata:
+        name: web-content
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resource:
+          requests:
+            storage: 5Gi
+
+JenkinsFile - Backup Strategy for Jenkins Workspace
+
+pipeline {
+    agent any
+    stages {
+        stage('Backup') {
+            steps {
+                echo 'Backing up Jenkins workspace...'
+                sh 'tar -czvf /temp/jenkins-backup.tar.gz ${WORKSPACE}'
+            }
+        }
+        stage('Restore') {
+            steps {
+                echo 'Restoring Jenkins workspaces...'
+                sh 'tar -xzvf /tmp/jenkins-backup.tar.gz -C ${WORKSPACE}'
+            }
+        }
+    }
+}
+
+GitLab CI/CD - Backup and Restore Deployment Files
+
+stages:
+  - backup
+  - restore
+
+backup:
+  stage: backup
+  script:
+    - tar -czvf /tmp/backup.tar.gz kubernates/deployment.yaml
+
+restore:
+  stage: restore
+  script:
+    - tar -xzvf /tmp/backup.tar.gz -C kubernates/
+
+Docker Compose - Nginx Service
+
+version: '3'
+services:
+  web:
+    image: nginx
+    container_name: payment-api-nginx
+    ports:
+      - "80:80"
